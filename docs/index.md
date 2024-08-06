@@ -16,22 +16,22 @@ hero:
     src: /pid-icon.svg
     alt: PID Icon
 features:
-  - title: Blazing fast build speed
-    details: The core compilation module is based on the Rust front-end toolchain, providing a more ultimate development experience.
-    icon: 🏃🏻‍♀️
-  - title: Support for MDX content writing
-    details: MDX is a powerful way to write content, allowing you to use React components in Markdown.
+  - title: 扩展
+    details: 轻松添加和集成新的 PID 实现，并可以将贡献提交到代码仓库，与社区分享，也可以直接使用社区提供的 PID 实现。
+    icon: 🔌
+  - title: 灵活
+    details: 支持同时运行多个不同的 PID 实现，轻松处理多种控制场景，同时控制多个不同的设备。
+    icon: 🍃
+  - title: 好用
+    details: 统一的调用接口，无需关注具体的 PID 实现细节。降低使用门槛，让你专注于控制逻辑而非底层实现。
+    icon: ✨
+  - title: 工具集
+    details: 未来将包含分析、测试、模拟工具，辅助你进行 PID 参数调试和性能评估。简化开发流程。
+    icon: 🔨
+  - title: 无缝集成
+    details: 无外部依赖，静态内存分配，低资源占用，方便地与现有项目集成，包括资源受限的单片机环境。
     icon: 📦
-  - title: Built-in full-text search
-    details: Automatically generates a full-text search index for you during construction, providing out-of-the-box full-text search capabilities.
-    icon: 🎨
-  - title: Simpler I18n solution
-    details: With the built-in I18n solution, you can easily provide multi-language support for documents or components.
-    icon: 🌍
-  - title: Static site generation
-    details: In production, it automatically builds into static HTML files, which can be easily deployed anywhere.
-    icon: 🌈
-  - title: Providing multiple custom capabilities
-    details: Through its extension mechanism, you can easily extend theme UI and build process.
-    icon: 🔥
+  - title: 文档和示例
+    details: 详细的文档帮助快速上手，丰富的示例帮助了解如何使用。
+    icon: 📖
 ---
