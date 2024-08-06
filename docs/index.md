@@ -3,7 +3,7 @@ pageType: home
 
 hero:
   name: PID
-  text: Proportional Integral Derivative
+  text: A feature-rich PID implementation
   tagline: Simple, feature-rich and easy to extend
   actions:
     - theme: brand
