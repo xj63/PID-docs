@@ -12,7 +12,7 @@ export default defineConfig({
   },
   themeConfig: {
     socialLinks: [
-      { icon: 'github', mode: 'link', content: 'https://github.com/web-infra-dev/rspress' },
+      { icon: 'github', mode: 'link', content: 'https://github.com/xj63/PID-docs' },
     ],
   },
 });

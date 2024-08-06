@@ -11,7 +11,7 @@ hero:
       link: /guide/
     - theme: alt
       text: GitHub
-      link: https://github.com/web-infra-dev/rspress
+      link: https://github.com/xj63/PID
   image:
     src: /rspress-icon.png
     alt: PID Logo
