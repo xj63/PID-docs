@@ -13,8 +13,8 @@ hero:
       text: GitHub
       link: https://github.com/xj63/PID
   image:
-    src: /rspress-icon.png
-    alt: PID Logo
+    src: /pid-icon.svg
+    alt: PID Icon
 features:
   - title: Blazing fast build speed
     details: The core compilation module is based on the Rust front-end toolchain, providing a more ultimate development experience.

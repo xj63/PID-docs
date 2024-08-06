@@ -5,11 +5,9 @@ export default defineConfig({
   root: path.join(__dirname, 'docs'),
   title: 'PID',
   description: 'Proportional Integral Derivative',
-  icon: '/rspress-icon.png',
-  logo: {
-    light: '/rspress-light-logo.png',
-    dark: '/rspress-dark-logo.png',
-  },
+  icon: '/pid-logo.svg',
+  logo: '/pid-logo.svg',
+  logoText: 'PID',
   themeConfig: {
     socialLinks: [
       { icon: 'github', mode: 'link', content: 'https://github.com/xj63/PID-docs' },
