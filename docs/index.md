@@ -3,8 +3,8 @@ pageType: home
 
 hero:
   name: PID
-  text: Documentation for PID
-  tagline: PID tagline
+  text: Proportional Integral Derivative
+  tagline: Simple, feature-rich and easy to extend
   actions:
     - theme: brand
       text: Quick Start
