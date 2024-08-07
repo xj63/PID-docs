@@ -3,7 +3,7 @@ pageType: home
 
 hero:
   name: PID
-  text: A feature-rich PID implementation
+  text: A collection of PID implementations.
   tagline: Simple, feature-rich and easy to extend
   actions:
     - theme: brand
