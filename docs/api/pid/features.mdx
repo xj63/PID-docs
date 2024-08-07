@@ -1,0 +1,132 @@
+# Features
+
+## default
+
+```c
+struct Pid pid_new_with_default(float kp, float ki, float kd);
+```
+
+创建默认PID控制器
+
+- `derivative = (previous - error) / dt`
+- `integral += ((error + previous) / 2) * dt`
+
+### Args
+
+- `kp` 比例增益系数
+- `ki` 积分增益系数
+- `kd` 微分增益系数
+
+### Example
+
+```c
+#include "pid/pid.h"
+struct Pid pid = pid_new_with_default(1, 0, 0);
+pid_update(&pid, 0, 0, 1);
+```
+
+## decay
+
+```c
+struct Pid pid_new_with_integral_decay(float kp, float ki, float kd, float integral_decay_factor);
+```
+
+创建带积分衰减的PID控制器
+
+1. `integral *= integral_decay_factor`
+2. `integral += ((error + previous) / 2) * dt`
+
+::: tip
+积分最大值将变为原来的 `1 / (1 - integral_decay_factor)`，可能存在恒定误差
+:::
+
+### Args
+
+- `integral_decay_factor` 积分衰减因子
+  - `integral_decay_factor = 1` 则完全不会衰减
+  - `integral_decay_factor = 0` 则不积分
+
+
+### Example
+
+```c
+#include "pid/pid.h"
+struct Pid pid = pid_new_with_integral_decay(1, 0, 0, 0.9);
+pid_update(&pid, 0, 0, 1);
+```
+
+## clamp
+
+```c
+struct Pid pid_new_with_integral_clamp(float kp, float ki, float kd, float integral_clamp_bound_min, float integral_clamp_bound_max);
+```
+
+创建带积分限幅的PID控制器
+
+1. `integral += ((error + previous) / 2) * dt`
+2. `integral = clamp(integral, integral_clamp_bound_min, integral_clamp_bound_max)`
+
+::: tip
+如果 `integral_clamp_bound_max` 设置的过小，将会造成不能达到目标
+:::
+
+### Args
+
+- `integral_clamp_bound_min` 积分最小值
+- `integral_clamp_bound_max` 积分最大值
+  - `min` must less than `max`
+
+### Example
+
+```c
+#include "pid/pid.h"
+struct Pid pid = pid_new_with_integral_clamp(1, 0, 0, -300, 300);
+pid_update(&pid, 0, 0, 1);
+```
+
+## separation
+
+```c
+struct Pid pid_new_with_integral_separation(float kp, float ki, float kd, float integral_separation_error_threshold_lower, float integral_separation_error_threshold_upper);
+```
+
+创建带积分分离的PID控制器
+
+- `if (lower < error && error < upper) integral += ((error + previous) / 2) * dt`
+
+### Args
+
+- `integral_separation_error_threshold_lower` 积分分离下限，当 `target - actual` 大于这个值
+- `integral_separation_error_threshold_upper` 积分分离上限，当 `target - actual` 小于这个值
+
+### Example
+
+```c
+#include "pid/pid.h"
+struct Pid pid = pid_new_with_integral_separation(1, 0, 0, -100, 100);
+pid_update(&pid, 0, 0, 1);
+```
+
+## integral_sliding_window
+
+```c
+struct Pid pid_new_with_integral_sliding_window(float kp, float ki, float kd, float finite_time);
+```
+
+创建带积分滑动窗口的PID控制器（积分定长时间 `t0 = finite_time`）
+
+```math
+\int_{t - t_0}^{t} e(t) dt
+```
+
+## Args
+
+- `finite_time` 积分定长时间（从当前往前积分 `finite_time`）单位为秒
+
+### Example
+
+```c
+#include "pid/pid.h"
+struct Pid pid = pid_new_with_integral_sliding_window(1, 0, 0, 10);
+pid_update(&pid, 0, 0, 1);
+```

@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { defineConfig } from 'rspress/config';
+import katex from 'rspress-plugin-katex';
 
 export default defineConfig({
   root: path.join(__dirname, 'docs'),
@@ -14,4 +15,5 @@ export default defineConfig({
       { icon: 'github', mode: 'link', content: 'https://github.com/xj63/PID-docs' },
     ],
   },
+  plugins: [katex()],
 });

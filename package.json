@@ -8,7 +8,8 @@
     "preview": "rspress preview"
   },
   "dependencies": {
-    "rspress": "^1.26.1"
+    "rspress": "^1.26.1",
+    "rspress-plugin-katex": "^0.3.0"
   },
   "devDependencies": {
     "@types/node": "^16"
