@@ -1,1 +1,8 @@
-["index"]
+[
+  "index",
+  {
+    "type": "dir",
+    "name": "chatter",
+    "label": "碎碎念"
+  }
+]
