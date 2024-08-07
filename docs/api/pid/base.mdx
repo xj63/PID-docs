@@ -1,0 +1,175 @@
+# Base
+
+## pid_new
+
+```c
+struct Pid pid_new(float kp, float ki, float kd);
+```
+
+创建PID控制器（默认）
+
+### Args
+
+- `kp` 比例增益系数
+- `ki` 积分增益系数
+- `kd` 微分增益系数
+
+### Example
+
+```c
+#include "pid/pid.h"
+struct Pid pid = pid_new(1, 0, 0);
+pid_update(&pid, 0, 0, 1);
+```
+
+## pid_update
+
+```c
+float pid_update(struct Pid *pid, float target, float actual, float dt);
+```
+
+更新PID控制器。
+
+### Args
+
+- `target` 目标值，手动设定的目标
+- `actual` 实际值，传感器获取的真实值
+  - `error = target - actual`
+- `dt` 时段（单位: 秒）上一次更新的到当前的时间间隔
+  - 用于计算 `integral += error * dt` 和 `derivative = (error - previous) / dt`
+  - 单位最好是秒，如果单位是其他，则 `ki` `kd` 需要跟着改变
+  - 如果使用等长时间更新，`dt` 最好设置为时间间隔，也可以设置为 1.0
+  - `dt` 必须大于 0.0（不能等于 0.0 ）,否则会出现 `nan` 或 `inf`
+
+### Example
+
+#### [push-box](https://github.com/xj63/PID/blob/main/examples/push-box.c)
+
+```c
+#include "pid/simulate/push-box.h"
+#include "pid/pid.h"
+#include <stdio.h>
+
+static struct Pid pid;
+static const float target = 100.0;
+static const float dt = 1;
+static float speed = 0.0;
+static float force = 0.0;
+static float time = 0.0;
+
+void interrupt_callback() {
+  force = pid_update(&pid, target, speed, dt);
+
+  push_box(&speed, force, dt);
+  printf("time: %.0fs, \t speed: %.1f, \t force: %.2f\n", time, speed, force);
+
+  time += dt;
+}
+
+int main() {
+  pid = pid_new_with_integral_clamp(1, 2, 0.1, -300, 300);
+
+  for (unsigned i = 0; i < 10; i++) {
+    // need #include <unistd.h>
+    // sleep(1);
+    interrupt_callback();
+  }
+}
+```
+
+#### [turn-angle](https://github.com/xj63/PID/blob/main/examples/turn-angle.c)
+
+对于角度 `(-180, 180]` 这种非连续的值，需要使用 `warpping` 处理。
+
+```c
+float warpping(float value, float min, float max) {
+  float range = max - min;
+  while(value < min) value += range;
+  while(value > max) value -= range;
+  return value;
+}
+```
+
+```c {29,35,48}
+#include "pid/pid.h"
+#include "pid/utils/num-limit-macro.h"
+#include "pid/utils/num-warpping.h"
+
+///       ^ 0
+/// -90 <   > 90
+///       v 180
+/// return [-180, 180) left - right +
+/// read MPU6050 and return current direction.
+float get_direction();
+
+/// set motor thrust
+void motor_thrust(float left, float right);
+
+/// turn angle with PID
+///
+/// turn: left - right +
+///
+/// # Example
+/// ```c
+/// turn_angle(90.0); // Turn right 90°
+/// turn_angle(-45.0); // Turn left 45°
+/// ```
+void turn_angle(float turn) {
+  motor_thrust(0, 0);
+  struct Pid pid = pid_new(1, 0, 0);
+  const float origin = get_direction();
+  // if origin < -90 turn 90 then target = 0 ^
+  const float target = WARPPING(origin + turn, -180, 180);
+
+  float current = get_direction();
+  // if current <- -90 target ^ 0 then diff = 90
+  // For the truth, the target is on his right. diff = 90.
+  // so he need to turn right.
+  float diff = WARPPING(target - current, -180, 180);
+
+  // |diff| < 1.0 is turning angle to target value.
+  while (ABS(diff) > 1.0) {
+    // error = target - current = 0 - 90 = -90
+    // The angle between target truth and target angle is zero.
+    // but actual angle diff is 90.
+    // return diff_thrust is negative because error and kp is negative.
+    // and need turn right. left speed + and right speed -
+    float diff_thrust = pid_update(&pid, 0, diff, 1.0);
+    motor_thrust(-diff_thrust, diff_thrust);
+
+    current = get_direction();
+    diff = WARPPING(target - current, -180, 180);
+  }
+}
+
+int main() { turn_angle(90); }
+```
+
+## pid_weighted_sum
+
+```c
+float pid_weighted_sum(struct Pid *pid, float proportional, float integral, float derivative);
+```
+
+计算 `Proportional` `Integral` `Derivative` 与权重加权后求和
+
+```c
+pid->kp * proportional + pid->ki * integral + pid->kd * derivative
+```
+
+用于 `pid_update[_with_feature]` 来计算输出，用户一般不需要使用。
+
+### Example
+
+```c {9}
+float pid_update_with_default(struct Pid *pid, float error, float dt) {
+  float differential = (error - pid->previous) / dt;
+
+  float average = (error + pid->previous) / 2.0;
+  pid->integral += average * dt;
+
+  pid->previous = error;
+
+  return pid_weighted_sum(pid, error, pid->integral, differential);
+}
+```
