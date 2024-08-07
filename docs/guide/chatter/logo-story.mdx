@@ -1,6 +1,8 @@
+import { normalizeImagePath } from 'rspress/runtime';
+
 <div className="image-container">
-  <img alt="pid icon" src="/pid-icon.svg" width="30%" />
-  <img alt="pid logo" src="/pid-logo.svg" width="30%" />
+  <img alt="pid icon" src={normalizeImagePath('/pid-icon.svg')} width="30%" />
+  <img alt="pid logo" src={normalizeImagePath('/pid-logo.svg')} width="30%" />
 </div>
 
 <style jsx>{`
