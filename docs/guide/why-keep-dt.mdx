@@ -1,0 +1,233 @@
+# 为什么保留 `dt`
+
+先来看看连续时间的 `PID` 的公式
+
+```math
+u(t) = K_p \cdot e(t) + K_i \cdot \int e(\tau) \, d\tau + K_d \cdot \frac{de(t)}{dt}
+\\
+\text{where} \quad e = \text{target} - \text{actual}
+```
+
+离散时间的 `PID` 的公式
+
+```math
+u_n = K_p \cdot e_n + K_i \cdot \sum_{k=0}^n e_k t_s + K_d \cdot \frac{e_n - e_{n-1}}{t_s}
+```
+
+其中 $t_s$ 为采样时间，即两次采样之间的时间间隔。
+
+当 $t_s$ 固定为 $T_s$ 时，则有：
+
+```math
+u_n = K_p \cdot e_n + K_i T_s \cdot \sum_{k=0}^n e_k + \frac{K_d}{T_s} \cdot (e_n - e_{n-1})
+```
+
+## 不保留 `dt` 的影响
+
+让我们先看一看如果忽略 $T_s$ 会有什么影响。
+
+这是我们以为忽略掉 $T_s$ 所要的公式（注意，标红的是发生变化的部分，标绿的是不变的部分）
+
+```math
+u_n = \textcolor{red}{k_p} \cdot \textcolor{green}{e_n}
+    + \textcolor{red}{k_i} \cdot \textcolor{green}{\sum_{k=0}^n e_k}
+    + \textcolor{red}{k_d} \cdot \textcolor{green}{(e_n - e_{n-1})}
+```
+
+而和真正的保留 $T_s$ 的公式对比
+
+```math
+u_n = \textcolor{red}{K_p} \cdot \textcolor{green}{e_n}
+    + \textcolor{red}{K_i T_s} \cdot \textcolor{green}{\sum_{k=0}^n e_k}
+    + \textcolor{red}{\frac{K_d}{T_s}} \cdot \textcolor{green}{(e_n - e_{n-1})}
+```
+
+可以发现，忽略掉 $T_s$ 的公式中，$k$ 是对 $K$ 与 $T_s$ 的替换
+
+```math
+\begin{cases}
+k_p = K_p \\
+k_i = K_i \cdot T_s \\
+k_d = K_d / T_s
+\end{cases}
+```
+
+这也就意味着，当你每隔 $0.1s$ 采样一次时，$T_s = 0.1$
+
+- 如果你将 $k_i$ 设置成 $1$ ，就相当于在正常 `PID` 中将 $K_i$ 设置成 $10$
+- 如果你将 $k_d$ 设置成 $1$ ，就相当于在正常 `PID` 中将 $K_d$ 设置成 $0.1$
+
+这将会导致一些小问题：
+
+比如说，当你将采样速率提升 $10$ 倍后，你需要修改 `PID`的系数 $k_i$ 为原来的 $0.1$ 倍，$k_d$ 为原来的 $10$ 倍。
+
+如果你没有注意到这个问题的话，你在调 $PID$ 系数时可能非常困难。
+
+> 我们曾经也没有注意到 $T_s$，于是吃了一亏。
+>
+> 我们曾简单的参考网上的资料写了一份 `PID`，用于控制小车，总体上工作正常。但当时并没有注意到 $T_s$ 的问题。
+>
+> 但当我们将采样时间从 $50ms$ 降低到 $10ms$ 时，一切都变了。
+> 我们的 `PID` 处于"异常玄学"的状态。
+> 我的同伴已经总结出经验，如果你发现系统不稳，那么就狠狠的增加 $k_d$，最终我们的 $k_d$ 达到了惊人的 $25$。
+> 至于积分项 $k_i$，由于每次以 $0.1$ 步进，实际上的 $K_i$ 却以 $10$ 步进，
+> 所以我们的积分项要么处于过于离谱，要么就没有。最后我们根本没有使用积分项。
+
+## `Ts` 固定到系数里
+
+要想解决上面的问题，可以假设采样时间 $T_s$ 固定，将 $T_s$ 与 $K$ 看作系数 $k$
+
+```math
+\begin{matrix}
+u_n = k_p \cdot e_n + k_i \cdot \sum_{k=0}^n e_k + k_d \cdot (e_n - e_{n-1})
+\\
+\text{where} \quad
+\begin{cases}
+k_p = K_p \\
+k_i = K_i \cdot T_s \\
+k_d = K_d / T_s
+\end{cases}
+\end{matrix}
+```
+
+我们可以为本项目实现一个固定采样时间的 `PID` 并开一个 `PR`
+
+先在 `GitHub` 上 fork 本项目，然后将 fork 的项目 clone 到本地
+
+```bash
+$ git clone https://github.com/your-name/PID
+```
+
+`your-name` 是你 `GitHub` 用户名，`PID` 是 fork 的项目名
+
+然后我们创建一个分支 `feat/fixed-sampling` 并切换到这个分支
+
+```bash
+$ cd PID
+$ git branch feat/fixed-sampling
+$ git checkout feat/fixed-sampling
+# or $ git checkout -b feat/fixed-sampling
+```
+
+接下来我们在 `features.h` 中添加创建 `PID` 函数的声明
+
+我们先在头部添加一个默认启用这个特性的宏
+
+```c
+#define PID_FEATURE_FIXED_SAMPLING
+```
+
+再添加 `PID` 函数的声明
+
+```c
+/// Create a PID controller with fixed sampling
+///
+/// ki = K_i * T_s
+/// kd = K_d / T_s
+///
+/// - Ts = sampling time
+/// - Ts must be greater than 0
+/// - Ts unit is seconds (s)
+struct Pid pid_new_with_fixed_sampling(float Kp, float Ki, float Kd, float Ts);
+```
+
+然后用条件宏包起来以实现按需启用
+
+```c
+#ifdef PID_FEATURE_FIXED_SAMPLING
+/// ...
+#endif // PID_FEATURE_FIXED_SAMPLING
+```
+
+接下来我们在 `features/fixed-sampling.c` 实现创建 `PID` 的函数
+
+在首行定义宏，以确保 `PID_FEATURE_FIXED_SAMPLING` 启用
+
+```c
+#define PID_FEATURE_FIXED_SAMPLING
+```
+
+引入 `PID` 的头文件
+
+```c
+#include "../pid.h"
+```
+
+创建 `pid_new_with_fixed_sampling` 函数
+
+```c
+struct Pid pid_new_with_fixed_sampling(float Kp, float Ki, float Kd, float Ts) {
+  return pid_new(Kp, Ki * Ts, Kd / Ts);
+}
+```
+
+我们已经实现了固定采样时间的 `PID`，只需要每次调用 `pid_update` 时，`dt` 传入 $1.0$ 即可
+
+我们接下来将这些变更添加到暂存区中，并进行提交
+
+```bash
+$ git add features/fixed-sampling.c features.h
+$ git diff --staged  # check diff
+$ git commit -m "feat: pid with fixed sampling time"
+$ git push -u origin feat/fixed-sampling  # push to remote and set upstream
+```
+
+然后我们就可以使用 `PR` 了，`GitHub` 提供了优雅的界面，这里不再演示。
+
+至此，我们就完成了一个 `PR` 了，但是在一些细节上有些差异。
+具体过程参考[feat: pid with fixed sampling time#3](https://github.com/xj63/PID/pull/3)
+
+```c
+#define PID_FEATURE_FIXED_SAMPLING
+
+#include "../pid.h"
+#include "../utils/generate-first-update.h"
+
+float pid_update_with_fixed_sampling(struct Pid *pid, float error,
+                                     float dt_ignore) {
+  float differential = error - pid->previous;
+  float average = (error + pid->previous) / 2.0;
+
+  pid->integral += average;
+  pid->previous = error;
+
+  return pid_weighted_sum(pid, error, pid->integral, differential);
+}
+
+PID_UPDATE_GENERATE_IS_FIRST(fixed_sampling)
+
+struct Pid pid_new_with_fixed_sampling(float Kp, float Ki, float Kd, float Ts) {
+  struct Pid pid = pid_new(Kp, Ki * Ts, Kd / Ts);
+  pid.update = pid_update_with_fixed_sampling_is_first;
+  return pid;
+}
+```
+
+这是实际上的实现的 `pid_new_with_fixed_sampling` 函数，我们创建了一个默认的 `pid`，
+并将 `update` 函数（`PID` 每次更新时调用）用 `pid_update_with_fixed_sampling_is_first` 替换。
+
+`PID_UPDATE_GENERATE_IS_FIRST(fixed_sampling)` 是一个宏函数，
+用于生成 `pid_update_with_fixed_sampling_is_first` 函数，生成的函数大概是这样。
+
+```c
+float pid_update_with_fixed_smapling_is_first(struct Pid *pid, float error, float dt) {
+  pid->previous = error;
+  pid->update = pid_update_with_fixed_sampling;
+  return pid_update_with_fixed_sampling(pid, error, dt);
+}
+```
+
+用于保证第一次的微分为 0
+
+通过设置 `update` 函数为 `pid_update_with_fixed_sampling`，
+`pid_update` 下一次就会调用 `pid_update_with_fixed_sampling` 了，
+先将 `pid->previous` 设置的和 `error` 相同，这样就保证了微分为 0。
+
+## 每次更新都传入 `dt`
+
+前面都是基于假设采样时间 $T_s$ 是一个固定的值，这符合大多数在中断中更新 `PID` 的场景。
+
+但是由于要考虑非等长采样时间，我们出于兼容考虑，`pid_update` 都会传入 `dt`。
+
+而且，我们发现如果想要 `PID` 效果好，最优方案是提高采样速率， 所以我们在另一个项目中
+使用轮询的任务调度，只要 `CPU` 有空，就会更新 `PID`，而这样必然是非等长时间的采样。

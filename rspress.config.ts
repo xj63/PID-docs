@@ -15,5 +15,5 @@ export default defineConfig({
       { icon: 'github', mode: 'link', content: 'https://github.com/xj63/PID-docs' },
     ],
   },
-  plugins: [katex()],
+  plugins: [katex({ strict: false })],
 });
