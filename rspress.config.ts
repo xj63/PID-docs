@@ -11,6 +11,7 @@ export default defineConfig({
   logo: '/pid-logo.svg',
   logoText: 'PID',
   themeConfig: {
+    lastUpdated: true,
     socialLinks: [
       { icon: 'github', mode: 'link', content: 'https://github.com/xj63/PID-docs' },
     ],
