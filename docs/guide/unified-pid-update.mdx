@@ -1,0 +1,205 @@
+# 统一的 `pid_update`
+
+我们希望用户可以通过 `pid_new_with_*` 函数创建包含想要特性的 `PID`，
+不管对于任意的 `PID` 都可以通过统一的 `pid_update` 函数更新 `PID`。
+
+```c
+struct Pid pid = pid_new(1, 0, 0);
+// do something
+while(1) pid_update(&pid, 0, 0, 0.1);
+```
+
+当用户想试一试其他的特性时，只需要将 `pid_new*` 函数替换为其他函数即可。
+
+```c
+struct Pid pid = pid_new_with_integral_clamp(1, 0, 0, -10, 10);
+// do something
+while(1) pid_update(&pid, 0, 0, 0.1);
+```
+
+同时开发者想要添加一种新的特性时，只需要在 `features.h` 中添加新的 `pid_new*` 函数声明即可。
+
+## 实现细节
+
+```c
+float pid_update(struct Pid *pid, float target, float actual, float dt) {
+  float error = target - actual;
+  return pid->update(pid, error, dt);
+}
+```
+
+`pid_update` 函数计算 `error = target - actual`，然后调用 `pid->update` 函数指针指向的函数更新 `PID`。
+
+而不同的 `pid_new*` 函数，将设置 `pid->update` 函数指针指向的不同的函数。
+
+## 结构细节
+
+```c
+struct Pid {
+  float kp, ki, kd;
+  float previous;
+  float integral;
+  float (*update)(struct Pid *pid, float error, float dt);
+  union PidFeaturesOption option;
+};
+```
+
+这是定义在 `pid.h` 中的 `Pid` 结构体，其中 `update` 字段是一个指向函数的指针。
+
+可以如此理解 `update` 的类型声明
+
+float (**`*update`**)(struct Pid *pid, float error, float dt);
+
+先声明了 `update` 是一个指针
+
+`float` (*update)`(struct Pid *pid, float error, float dt)`;
+
+然后声明了 `*update` 的类型为一个接受三个参数 `struct Pid *, float, float` 返回一个 `float` 的函数
+
+所以 `update` 是一个指向函数的指针
+
+也可以使用 `typedef` 来帮助理解
+
+```c
+typedef float update_fn(struct Pid *pid, float error, float dt); // update_fn 是一个函数类型
+update_fn *update; // update 是一个指针，指向的类型为 `update_fn`
+```
+
+在每次初始化的时候，设置 `pid.update` 函数指针指向的更新的函数
+
+```c
+float pid_update_with_xxx(struct Pid *pid, float error, float dt) {
+  // do something
+}
+
+struct Pid pid_new_with_xxx(float kp, float ki, float kd) {
+  struct Pid pid = pid_new(kp, ki, kd);
+  pid.update = pid_update_with_xxx;
+  return pid;
+}
+```
+
+这样每次调用 `pid_update` 就会调用 `pid_update_with_xxx` 函数，实现了类似于动态分发的效果。
+
+虽然这样实现有可能丧失一些编译器优化机会，但带来的好处是可以轻松地添加新的特性。
+
+而且，也可以通过更换函数指针实现第一次运行和后续更新不一致的情况
+
+```c
+float pid_update_with_xxx(struct Pid *pid, float error, float dt) {
+  float differential = (error - pid->previous) / dt;
+  float average = (error + pid->previous) / 2.0;
+
+  pid->integral += average * dt;
+  pid->previous = error;
+
+  return pid_weighted_sum(pid, error, pid->integral, differential);
+}
+
+float pid_update_with_xxx_is_first(struct Pid *pid, float error, float dt) {
+  pid->previous = error; // 确保第一次微分为 0
+  pid->update = pid_update_with_xxx;
+  return pid_update_with_xxx(pid, error, dt);
+}
+
+struct Pid pid_new_with_xxx(float kp, float ki, float kd) {
+  struct Pid pid = pid_new(kp, ki, kd);
+  pid.update = pid_update_with_xxx_is_first;
+  return pid;
+}
+```
+
+但是不同的 `PID` 还要存储一些其他的参数，比方说积分限幅，需要保存额外的限幅范围。
+
+通过在 `struct Pid` 中增加一个 `union PidFeaturesOption option` 来实现
+
+```c
+union PidFeaturesOption {
+#ifdef PID_FEATURE_INTEGRAL_DECAY
+  float integral_decay_factor;
+#endif // PID_FEATURE_INTEGRAL_DECAY
+
+#ifdef PID_FEATURE_INTEGRAL_CLAMP
+  struct BoundRange integral_clamp_bound;
+#endif // PID_FEATURE_INTEGRAL_CLAMP
+
+#ifdef PID_FEATURE_INTEGRAL_SEPARATION
+  struct BoundRange integral_separation_error_threshold;
+#endif // PID_FEATURE_INTEGRAL_SEPARATION
+
+#ifdef PID_FEATURE_INTEGRAL_SLIDING_WINDOW
+  struct IntegralSlidingWindow integral_sliding_window;
+#endif // PID_FEATURE_INTEGRAL_SLIDING_WINDOW
+};
+```
+
+`union` 联合，同时只能有一个成员被使用，其大小是最大的那个成员的大小。
+相当于说明需要一块区域（最大成员大小），然后以某个字段的类型来访问这块区域。
+
+::: tip
+目前 `union PidFeaturesOption option` 字段的大小为 `float * 2` 为 `8` 个字节，
+如果某个实现需要更大的 `option`， 建议设置为默认不启用以减少不必要的空间浪费，
+如：默认关闭的 `PID_FEATURE_INTEGRAL_SLIDING_WINDOW`
+:::
+
+`pid_new_with_xxx` 将额外的数据保存在 `option` 中，
+创建的 `pid_update_with_xxx` 函数知道如何使用对应的 `option`。
+
+```c {12} title=features.h
+#if defined(PID_FEATURE_INTEGRAL_CLAMP) ||                                     \
+    defined(PID_FEATURE_INTEGRAL_SEPARATION)
+struct BoundRange {
+  float min;
+  float max;
+};
+#endif // PID_FEATURE_INTEGRAL_CLAMP || PID_FEATURE_INTEGRAL_SEPARATION
+
+union PidFeaturesOption {
+/// ...
+#ifdef PID_FEATURE_INTEGRAL_CLAMP
+  struct BoundRange integral_clamp_bound;
+#endif // PID_FEATURE_INTEGRAL_CLAMP
+/// ...
+}
+```
+
+```c {14-15,29-33} title=features/integral-clamp.c
+#define PID_FEATURE_INTEGRAL_CLAMP
+
+#include "../pid.h"
+#include "../utils/generate-first-update.h"
+#include "../utils/num-limit-macro.h"
+
+float pid_update_with_integral_clamp(struct Pid *pid, float error, float dt) {
+  float differential = (error - pid->previous) / dt;
+
+  float average = (error + pid->previous) / 2.0;
+  pid->integral += average * dt;
+
+  // clamp integral
+  struct BoundRange clamp = pid->option.integral_clamp_bound;
+  pid->integral = LIMIT(pid->integral, clamp.min, clamp.max);
+
+  pid->previous = error;
+
+  return pid_weighted_sum(pid, error, pid->integral, differential);
+}
+
+PID_UPDATE_GENERATE_IS_FIRST(integral_clamp)
+
+struct Pid pid_new_with_integral_clamp(float kp, float ki, float kd,
+                                       float integral_clamp_bound_min,
+                                       float integral_clamp_bound_max) {
+  struct Pid pid = pid_new(kp, ki, kd);
+
+  struct BoundRange integral_clamp_bound = {
+      .min = integral_clamp_bound_min,
+      .max = integral_clamp_bound_max,
+  };
+  pid.option.integral_clamp_bound = integral_clamp_bound;
+
+  pid.update = pid_update_with_integral_clamp_is_first;
+
+  return pid;
+}
+```
