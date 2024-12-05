@@ -13,7 +13,7 @@ export default defineConfig({
   themeConfig: {
     lastUpdated: true,
     socialLinks: [
-      { icon: 'github', mode: 'link', content: 'https://github.com/xj63/PID-docs' },
+      { icon: 'github', mode: 'link', content: 'https://github.com/xj63/PID' },
     ],
   },
   plugins: [katex({ strict: false })],
