@@ -15,6 +15,25 @@ export default defineConfig({
     socialLinks: [
       { icon: 'github', mode: 'link', content: 'https://github.com/xj63/PID' },
     ],
+    locales: [
+      {
+        lang: 'zh',
+        label: '简体中文',
+        editLink: {
+          docRepoBaseUrl: 'https://github.com/xj63/PID-docs/tree/main/docs',
+          text: '📝 在 GitHub 上编辑此页',
+        },
+      },
+      {
+        lang: 'en',
+        label: 'English',
+        editLink: {
+          docRepoBaseUrl: 'https://github.com/xj63/PID-docs/tree/main/docs',
+          text: '📝 Edit this page on GitHub',
+        },
+      },
+    ],
+
   },
   plugins: [katex({ strict: false })],
 });
